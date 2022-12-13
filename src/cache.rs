@@ -81,10 +81,7 @@ pub struct FinalizeQuery {
 pub fn finalize_cache(version: String, key: String, input: FinalizeQuery) -> WithStatus<Json> {
     eprintln!("[finalize_cache] version = {version}, key = {key}, input = {input:?}");
 
-    let size = finalize_files(
-        &format!(".act_local_cache/caches"),
-        &format!("{version}/{key}*"),
-    );
+    let size = finalize_files(".act_local_cache/caches", &format!("{version}/{key}*"));
     if size != input.size {
         let expected = input.size;
         eprintln!("[finalize_cache] upload size differs (expected = {expected}, actual = {size})");

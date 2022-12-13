@@ -26,7 +26,7 @@ pub fn save_file(path: &str, is_gzip: bool, start: usize, input: &[u8]) {
 }
 
 pub fn finalize_files(dir: &str, pattern: &str) -> usize {
-    let paths = glob_in(&dir, &format!("{pattern}.uploadTemporary.*")).unwrap();
+    let paths = glob_in(dir, &format!("{pattern}.uploadTemporary.*")).unwrap();
 
     // group by basename
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
@@ -108,11 +108,9 @@ pub fn dump_file(path: &str, range: Option<Range<usize>>) -> (bool, Vec<u8>) {
     if let Some(range) = range {
         file.seek(SeekFrom::Start(range.start as u64)).unwrap();
 
-        let mut buf = Vec::with_capacity(range.len());
-        unsafe { buf.set_len(range.len()) };
-
+        let mut buf = vec![0; range.len()];
         let len = file.read(&mut buf).unwrap();
-        unsafe { buf.set_len(len) };
+        buf.truncate(len);
 
         (is_gzip, buf)
     } else {

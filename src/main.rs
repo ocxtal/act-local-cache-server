@@ -5,7 +5,6 @@ mod utils;
 
 use crate::artifact::*;
 use crate::cache::*;
-use pretty_env_logger;
 use warp::Filter;
 
 fn root() -> String {
