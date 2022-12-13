@@ -25,8 +25,8 @@ pub fn save_file(path: &str, is_gzip: bool, start: usize, input: &[u8]) {
     file.write_all(input).unwrap();
 }
 
-pub fn finalize_files(dir: &str) -> usize {
-    let paths = glob_in(&dir, "**/*.uploadTemporary.*").unwrap();
+pub fn finalize_files(dir: &str, pattern: &str) -> usize {
+    let paths = glob_in(&dir, &format!("{pattern}.uploadTemporary.*")).unwrap();
 
     // group by basename
     let mut map: HashMap<String, Vec<String>> = HashMap::new();

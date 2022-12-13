@@ -1,7 +1,6 @@
 use crate::file::*;
-use crate::utils::glob_in;
+use crate::utils::{glob_in, parse_range};
 use serde_derive::{Deserialize, Serialize};
-use std::ops::Range;
 use warp::http::{Response, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::path::Tail;
@@ -37,8 +36,8 @@ struct UrlResponse {
     url: String,
 }
 
-pub fn get_upload_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
-    eprintln!("[get_upload_url] run_id = {run_id}, version = {version:?}");
+pub fn get_artifact_upload_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
+    eprintln!("[get_artifact_upload_url] run_id = {run_id}, version = {version:?}");
 
     // TODO: unsupported version response
     if version.api_version != "6.0-preview" {
@@ -49,7 +48,7 @@ pub fn get_upload_url(run_id: String, version: VersionQuery) -> WithStatus<Json>
         status: "success".to_string(),
         url: format!("http://127.0.0.1:8000/upload/{run_id}"),
     };
-    eprintln!("[get_upload_url] response = {res:?}");
+    eprintln!("[get_artifact_upload_url] response = {res:?}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -60,22 +59,7 @@ pub struct ItemPathQuery {
     path: String,
 }
 
-fn parse_range(input: &str) -> Range<usize> {
-    // parse "bytes 8388608-10485759/10485760" form
-
-    // first split header
-    let body = input.strip_prefix("bytes ").unwrap();
-
-    let (range, _) = body.split_once('/').unwrap();
-    let (start, end) = range.split_once('-').unwrap();
-
-    let start = start.parse::<usize>().unwrap();
-    let end = end.parse::<usize>().unwrap();
-
-    start..end
-}
-
-pub fn upload_file(
+pub fn upload_artifact(
     run_id: String,
     path: ItemPathQuery,
     encoding: Option<String>,
@@ -83,14 +67,14 @@ pub fn upload_file(
     input: Bytes,
 ) -> Json {
     eprintln!(
-        "[upload_file] run_id = {run_id}, path = {path:?}, range = {range:?}, input = <{} bytes>",
+        "[upload_artifact] run_id = {run_id}, path = {path:?}, range = {range:?}, input = <{} bytes>",
         input.len()
     );
 
     // format chunk prefix that can be safely sorted into the original chunk order
     // (this assumes total bytes being less than 1TB)
     let path = path.path;
-    let path = format!("artifacts/{run_id}/{path}");
+    let path = format!(".act_local_cache/artifacts/{run_id}/{path}");
 
     // workaround for gzipped stream
     let is_gzip = encoding.as_deref() == Some("gzip");
@@ -101,7 +85,7 @@ pub fn upload_file(
     let res = StatusResponse {
         status: "success".to_string(),
     };
-    eprintln!("[upload_file] response = {res:?}");
+    eprintln!("[upload_artifact] response = {res:?}");
 
     json(&res)
 }
@@ -123,7 +107,7 @@ pub fn finalize_artifact(
         return unsupported_version();
     }
 
-    let size = finalize_files(&format!("artifacts/{run_id}"));
+    let size = finalize_files(&format!(".act_local_cache/artifacts/{run_id}"), "**/*");
     if size != input.size {
         let expected = input.size;
         eprintln!(
@@ -155,15 +139,15 @@ struct UrlArrayResponse {
     value: Vec<UrlArrayElement>,
 }
 
-pub fn get_download_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
-    eprintln!("[get_download_url] run_id = {run_id}, version = {version:?}");
+pub fn get_artifact_download_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
+    eprintln!("[get_artifact_download_url] run_id = {run_id}, version = {version:?}");
 
     // TODO: unsupported version response
     if version.api_version != "6.0-preview" {
         return unsupported_version();
     }
 
-    let dir = format!("artifacts/{run_id}");
+    let dir = format!(".act_local_cache/artifacts/{run_id}");
     let paths = glob_in(&dir, "*").unwrap();
 
     let mut array = Vec::new();
@@ -181,7 +165,7 @@ pub fn get_download_url(run_id: String, version: VersionQuery) -> WithStatus<Jso
         count,
         value: array,
     };
-    eprintln!("[get_download_url] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
+    eprintln!("[get_artifact_download_url] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -204,10 +188,10 @@ struct PathArrayResponse {
     value: Vec<PathArrayElement>,
 }
 
-pub fn enumerate_files(run_id: String) -> WithStatus<Json> {
-    eprintln!("[enumerate_file] run_id = {run_id}");
+pub fn enumerate_artifacts(run_id: String) -> WithStatus<Json> {
+    eprintln!("[enumerate_artifacts] run_id = {run_id}");
 
-    let files = list_all_files(&format!("artifacts/{run_id}"));
+    let files = list_all_files(&format!(".act_local_cache/artifacts/{run_id}"));
 
     let mut array = Vec::new();
     for file in files {
@@ -225,17 +209,17 @@ pub fn enumerate_files(run_id: String) -> WithStatus<Json> {
         count,
         value: array,
     };
-    eprintln!("[enumerate_file] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
+    eprintln!("[enumerate_artifacts] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
 
     with_status(json(&res), StatusCode::OK)
 }
 
-pub fn download_file(run_id: String, path: Tail, range: Option<String>) -> Response<Vec<u8>> {
-    eprintln!("[download_file] run_id = {run_id}, path = {path:?}, range = {range:?}");
+pub fn download_artifact(run_id: String, path: Tail, range: Option<String>) -> Response<Vec<u8>> {
+    eprintln!("[download_artifact] run_id = {run_id}, path = {path:?}, range = {range:?}");
 
     let path = path.as_str();
     let (is_gzip, data) = dump_file(
-        &format!("artifacts/{run_id}/{path}"),
+        &format!(".act_local_cache/artifacts/{run_id}/{path}"),
         range.as_deref().map(parse_range),
     );
 
@@ -248,7 +232,7 @@ pub fn download_file(run_id: String, path: Tail, range: Option<String>) -> Respo
     };
 
     let len = data.len();
-    eprintln!("[download_file] response = <{len} bytes>");
+    eprintln!("[download_artifact] response = <{len} bytes>");
 
     header.body(data).unwrap()
 }
