@@ -1,4 +1,3 @@
-
 use serde_derive::{Deserialize, Serialize};
 use warp::hyper::body::Bytes;
 use warp::path::Tail;
@@ -47,7 +46,13 @@ fn finalize_cache(version: String, key: String, input: FinalizeQuery) -> Json {
     json(&res)
 }
 
-fn upload_cache(version: String, key: String, encoding: Option<String>, range: Option<String>, input: Bytes) -> Json {
+fn upload_cache(
+    version: String,
+    key: String,
+    encoding: Option<String>,
+    range: Option<String>,
+    input: Bytes,
+) -> Json {
     let res = StatusResponse {
         status: "success".to_string(),
     };
@@ -64,7 +69,6 @@ struct EnumerateQuery {
 struct EnumerateResponse {
     status: String,
     count: usize,
-
 }
 
 // fn enumerate_cache(query: EnumerateQuery) -> Json {
@@ -81,6 +85,8 @@ pub fn print_cache(path: Tail, input: Bytes) -> Json {
 
     eprintln!("path({:?}), input({:?})", path, input);
 
-    let res = StatusResponse { status: "ok".to_string() };
+    let res = StatusResponse {
+        status: "ok".to_string(),
+    };
     json(&res)
 }

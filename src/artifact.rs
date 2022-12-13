@@ -1,9 +1,8 @@
-
 use crate::file::*;
 use crate::utils::glob_in;
 use serde_derive::{Deserialize, Serialize};
 use std::ops::Range;
-use warp::http::{StatusCode, Response};
+use warp::http::{Response, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::path::Tail;
 use warp::reply::{json, with_status, Json, WithStatus};
@@ -76,8 +75,17 @@ fn parse_range(input: &str) -> Range<usize> {
     start..end
 }
 
-pub fn upload_file(run_id: String, path: ItemPathQuery, encoding: Option<String>, range: Option<String>, input: Bytes) -> Json {
-    eprintln!("[upload_file] run_id = {run_id}, path = {path:?}, range = {range:?}, input = <{} bytes>", input.len());
+pub fn upload_file(
+    run_id: String,
+    path: ItemPathQuery,
+    encoding: Option<String>,
+    range: Option<String>,
+    input: Bytes,
+) -> Json {
+    eprintln!(
+        "[upload_file] run_id = {run_id}, path = {path:?}, range = {range:?}, input = <{} bytes>",
+        input.len()
+    );
 
     // format chunk prefix that can be safely sorted into the original chunk order
     // (this assumes total bytes being less than 1TB)
@@ -90,7 +98,9 @@ pub fn upload_file(run_id: String, path: ItemPathQuery, encoding: Option<String>
     let range = range.as_deref().map_or(0..input.len(), parse_range);
     save_file(&path, is_gzip, range.start, &input.slice(..));
 
-    let res = StatusResponse { status: "success".to_string() };
+    let res = StatusResponse {
+        status: "success".to_string(),
+    };
     eprintln!("[upload_file] response = {res:?}");
 
     json(&res)
@@ -116,7 +126,9 @@ pub fn finalize_artifact(
     let size = finalize_files(&format!("artifacts/{run_id}"));
     if size != input.size {
         let expected = input.size;
-        eprintln!("[finalize_artifact] upload size differs (expected = {expected}, actual = {size})");
+        eprintln!(
+            "[finalize_artifact] upload size differs (expected = {expected}, actual = {size})"
+        );
     }
 
     // TODO: check total file size (and concatenate files if needed)
@@ -200,7 +212,11 @@ pub fn enumerate_files(run_id: String) -> WithStatus<Json> {
     let mut array = Vec::new();
     for file in files {
         let url = format!("http://127.0.0.1:8000/download/{run_id}/{file}");
-        array.push(PathArrayElement { path: file, item_type: "file".to_string(), url });
+        array.push(PathArrayElement {
+            path: file,
+            item_type: "file".to_string(),
+            url,
+        });
     }
 
     let count = array.len();
@@ -218,7 +234,10 @@ pub fn download_file(run_id: String, path: Tail, range: Option<String>) -> Respo
     eprintln!("[download_file] run_id = {run_id}, path = {path:?}, range = {range:?}");
 
     let path = path.as_str();
-    let (is_gzip, data) = dump_file(&format!("artifacts/{run_id}/{path}"), range.as_deref().map(parse_range));
+    let (is_gzip, data) = dump_file(
+        &format!("artifacts/{run_id}/{path}"),
+        range.as_deref().map(parse_range),
+    );
 
     // workaround for gzipped stream
     let header = Response::builder().header("Content-Type", "application/octet-stream");

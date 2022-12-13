@@ -1,6 +1,5 @@
-
-mod artifact;   // actions/upload-artifact@v3 and actions/download-artifact@v3
-mod cache;      // actions/cache@v3
+mod artifact; // actions/upload-artifact@v3 and actions/download-artifact@v3
+mod cache; // actions/cache@v3
 mod file;
 mod utils;
 
@@ -48,40 +47,35 @@ async fn main() {
             .map(finalize_artifact);
 
     // GET "/download/<run_id>"
-    let path_enumerate_files =
-        warp::path::param::<String>()
-            .and(warp::path::end())
-            .map(enumerate_files);
+    let path_enumerate_files = warp::path::param::<String>()
+        .and(warp::path::end())
+        .map(enumerate_files);
 
     // GET "/download/<run_id>/<path>"
-    let path_download_file =
-        warp::path::param::<String>()
-            .and(warp::path::tail())
-            .and(warp::header::optional::<String>("Content-Range"))
-            .map(download_file);
+    let path_download_file = warp::path::param::<String>()
+        .and(warp::path::tail())
+        .and(warp::header::optional::<String>("Content-Range"))
+        .map(download_file);
 
     // either of two above
-    let path_download_or_enumerate =
-        warp::path("download")
-            .and(warp::get())
-            .and(path_enumerate_files.or(path_download_file));
+    let path_download_or_enumerate = warp::path("download")
+        .and(warp::get())
+        .and(path_enumerate_files.or(path_download_file));
 
     // PUT "/upload/<run_id>"
-    let path_upload_file =
-        warp::path!("upload" / String)
-            .and(warp::put())
-            .and(warp::query::<ItemPathQuery>())
-            .and(warp::header::optional::<String>("Content-Encoding"))
-            .and(warp::header::optional::<String>("Content-Range"))
-            .and(warp::body::content_length_limit(32 * 1024 * 1024))
-            .and(warp::body::bytes())
-            .map(upload_file);
+    let path_upload_file = warp::path!("upload" / String)
+        .and(warp::put())
+        .and(warp::query::<ItemPathQuery>())
+        .and(warp::header::optional::<String>("Content-Encoding"))
+        .and(warp::header::optional::<String>("Content-Range"))
+        .and(warp::body::content_length_limit(32 * 1024 * 1024))
+        .and(warp::body::bytes())
+        .map(upload_file);
 
-    let path_cache =
-        warp::path!("_apis" / "artifactcache" / "caches")
-            .and(warp::path::tail())
-            .and(warp::body::bytes())
-            .map(print_cache);
+    let path_cache = warp::path!("_apis" / "artifactcache" / "caches")
+        .and(warp::path::tail())
+        .and(warp::body::bytes())
+        .map(print_cache);
 
     let routes = warp::any().and(
         path_root

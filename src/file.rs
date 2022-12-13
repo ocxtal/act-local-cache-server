@@ -1,7 +1,6 @@
-
 use crate::utils::glob_in;
 use std::collections::HashMap;
-use std::io::{Seek, SeekFrom, Write, Read};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 use std::path::Path;
 
@@ -16,7 +15,13 @@ pub fn save_file(path: &str, is_gzip: bool, start: usize, input: &[u8]) {
     let (dir, _) = path.rsplit_once('/').unwrap();
     std::fs::create_dir_all(dir).unwrap();
 
-    let mut file = std::fs::OpenOptions::new().read(false).write(true).create(true).truncate(true).open(&path).unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&path)
+        .unwrap();
     file.write_all(input).unwrap();
 }
 
@@ -45,7 +50,13 @@ pub fn finalize_files(dir: &str) -> usize {
         srcs.sort();
 
         let dst = format!("{dir}/{dst}");
-        let mut dst = std::fs::OpenOptions::new().read(false).write(true).create(true).truncate(true).open(&dst).unwrap();
+        let mut dst = std::fs::OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&dst)
+            .unwrap();
 
         for src in srcs {
             buf.clear();
