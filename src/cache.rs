@@ -36,7 +36,7 @@ pub fn reserve_cache(query: ReserveCacheQuery) -> Json {
 
     let res = ReserveCacheResponse {
         status: "success".to_string(),
-        cache_id: format!("{}/{}", query.version, query.key),
+        cache_id: format!("{}/{}", query.key, query.version),
     };
     eprintln!("[reserve_cache] response = {res:?}");
 
@@ -44,8 +44,8 @@ pub fn reserve_cache(query: ReserveCacheQuery) -> Json {
 }
 
 pub fn upload_cache(
-    version: String,
     key: String,
+    version: String,
     encoding: Option<String>,
     range: Option<String>,
     input: Bytes,
@@ -57,7 +57,7 @@ pub fn upload_cache(
 
     // format chunk prefix that can be safely sorted into the original chunk order
     // (this assumes total bytes being less than 1TB)
-    let path = format!(".act_local_cache/caches/{version}/{key}");
+    let path = format!(".act_local_cache/caches/{key}/{version}");
 
     // workaround for gzipped stream
     let is_gzip = encoding.as_deref() == Some("gzip");
@@ -78,10 +78,10 @@ pub struct FinalizeQuery {
     size: usize,
 }
 
-pub fn finalize_cache(version: String, key: String, input: FinalizeQuery) -> WithStatus<Json> {
+pub fn finalize_cache(key: String, version: String, input: FinalizeQuery) -> WithStatus<Json> {
     eprintln!("[finalize_cache] version = {version}, key = {key}, input = {input:?}");
 
-    let size = finalize_files(".act_local_cache/caches", &format!("{version}/{key}*"));
+    let size = finalize_files(".act_local_cache/caches", &format!("{key}/{version}*"));
     if size != input.size {
         let expected = input.size;
         eprintln!("[finalize_cache] upload size differs (expected = {expected}, actual = {size})");
@@ -108,6 +108,9 @@ struct UrlResponse {
 
     #[serde(rename = "archiveLocation")]
     url: String,
+
+    #[serde(rename = "cacheKey")]
+    key: String,
 }
 
 pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
@@ -117,14 +120,15 @@ pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
 
     let mut array = Vec::new();
     for key in query.keys.split(',') {
-        let path = format!(".act_local_cache/caches/{version}/{key}");
+        let path = format!(".act_local_cache/caches/{key}/{version}");
 
         if Path::new(&path).exists() {
             let url =
-                format!("http://127.0.0.1:8000/_apis/artifactcache/cache/download/{version}/{key}");
+                format!("http://127.0.0.1:8000/_apis/artifactcache/cache/download/{key}/{version}");
             array.push(UrlResponse {
                 status: "success".to_string(),
                 url,
+                key: key.to_string(),
             });
         }
     }
@@ -142,11 +146,11 @@ pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
     }
 }
 
-pub fn download_cache(version: String, key: String, range: Option<String>) -> Response<Vec<u8>> {
+pub fn download_cache(key: String, version: String, range: Option<String>) -> Response<Vec<u8>> {
     eprintln!("[download_cache] version = {version}, key = {key}, range = {range:?}");
 
     let (is_gzip, data) = dump_file(
-        &format!(".act_local_cache/caches/{version}/{key}"),
+        &format!(".act_local_cache/caches/{key}/{version}"),
         range.as_deref().map(parse_range),
     );
 
