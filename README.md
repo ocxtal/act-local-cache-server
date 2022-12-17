@@ -26,7 +26,7 @@ Save the following `.actrc` to the root of the repository you run nektos/act.
 --env ACTIONS_RUNTIME_TOKEN=token
 ```
 
-and launch the server at the directory where you want to save artifacts and caches.
+and launch the server in the directory where you want to save artifacts and caches.
 
 ```console
 $ act-local-cache-server
