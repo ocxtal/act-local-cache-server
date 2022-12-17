@@ -1,5 +1,6 @@
 use crate::file::*;
 use crate::utils::{glob_in, parse_range};
+use log::info;
 use serde_derive::{Deserialize, Serialize};
 use warp::http::{Response, StatusCode};
 use warp::hyper::body::Bytes;
@@ -18,7 +19,7 @@ struct StatusResponse {
 }
 
 fn unsupported_version() -> WithStatus<Json> {
-    eprintln!("[unsupported_version] unsupported api-version");
+    info!("[unsupported_version] unsupported api-version");
 
     with_status(
         json(&StatusResponse {
@@ -36,8 +37,12 @@ struct UrlResponse {
     url: String,
 }
 
-pub fn get_artifact_upload_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
-    eprintln!("[get_artifact_upload_url] run_id = {run_id}, version = {version:?}");
+pub fn get_artifact_upload_url(
+    host: &str,
+    run_id: String,
+    version: VersionQuery,
+) -> WithStatus<Json> {
+    info!("[get_artifact_upload_url] run_id = {run_id}, version = {version:?}");
 
     // TODO: unsupported version response
     if version.api_version != "6.0-preview" {
@@ -46,9 +51,9 @@ pub fn get_artifact_upload_url(run_id: String, version: VersionQuery) -> WithSta
 
     let res = UrlResponse {
         status: "success".to_string(),
-        url: format!("http://127.0.0.1:8000/upload/{run_id}"),
+        url: format!("{host}/upload/{run_id}"),
     };
-    eprintln!("[get_artifact_upload_url] response = {res:?}");
+    info!("[get_artifact_upload_url] response = {res:?}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -66,7 +71,7 @@ pub fn upload_artifact(
     range: Option<String>,
     input: Bytes,
 ) -> Json {
-    eprintln!(
+    info!(
         "[upload_artifact] run_id = {run_id}, path = {path:?}, range = {range:?}, input = <{} bytes>",
         input.len()
     );
@@ -85,7 +90,7 @@ pub fn upload_artifact(
     let res = StatusResponse {
         status: "success".to_string(),
     };
-    eprintln!("[upload_artifact] response = {res:?}");
+    info!("[upload_artifact] response = {res:?}");
 
     json(&res)
 }
@@ -101,7 +106,7 @@ pub fn finalize_artifact(
     version: VersionQuery,
     input: FinalizeQuery,
 ) -> WithStatus<Json> {
-    eprintln!("[finalize_artifact] run_id = {run_id}, version = {version:?}, input = {input:?}");
+    info!("[finalize_artifact] run_id = {run_id}, version = {version:?}, input = {input:?}");
 
     if version.api_version != "6.0-preview" {
         return unsupported_version();
@@ -110,16 +115,14 @@ pub fn finalize_artifact(
     let size = finalize_files(&format!(".act_local_cache/artifacts/{run_id}"), "**/*");
     if size != input.size {
         let expected = input.size;
-        eprintln!(
-            "[finalize_artifact] upload size differs (expected = {expected}, actual = {size})"
-        );
+        info!("[finalize_artifact] upload size differs (expected = {expected}, actual = {size})");
     }
 
     // TODO: check total file size (and concatenate files if needed)
     let res = StatusResponse {
         status: "success".to_string(),
     };
-    eprintln!("[finalize_artifact] response = {res:?}");
+    info!("[finalize_artifact] response = {res:?}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -139,8 +142,12 @@ struct UrlArrayResponse {
     value: Vec<UrlArrayElement>,
 }
 
-pub fn get_artifact_download_url(run_id: String, version: VersionQuery) -> WithStatus<Json> {
-    eprintln!("[get_artifact_download_url] run_id = {run_id}, version = {version:?}");
+pub fn get_artifact_download_url(
+    host: &str,
+    run_id: String,
+    version: VersionQuery,
+) -> WithStatus<Json> {
+    info!("[get_artifact_download_url] run_id = {run_id}, version = {version:?}");
 
     // TODO: unsupported version response
     if version.api_version != "6.0-preview" {
@@ -155,7 +162,7 @@ pub fn get_artifact_download_url(run_id: String, version: VersionQuery) -> WithS
         let path = path.to_str().unwrap();
         array.push(UrlArrayElement {
             name: path.to_string(),
-            url: format!("http://127.0.0.1:8000/download/{run_id}"),
+            url: format!("{host}/download/{run_id}"),
         });
     }
 
@@ -165,7 +172,7 @@ pub fn get_artifact_download_url(run_id: String, version: VersionQuery) -> WithS
         count,
         value: array,
     };
-    eprintln!("[get_artifact_download_url] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
+    info!("[get_artifact_download_url] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -188,14 +195,14 @@ struct PathArrayResponse {
     value: Vec<PathArrayElement>,
 }
 
-pub fn enumerate_artifacts(run_id: String) -> WithStatus<Json> {
-    eprintln!("[enumerate_artifacts] run_id = {run_id}");
+pub fn enumerate_artifacts(host: &str, run_id: String) -> WithStatus<Json> {
+    info!("[enumerate_artifacts] run_id = {run_id}");
 
     let files = list_all_files(&format!(".act_local_cache/artifacts/{run_id}"));
 
     let mut array = Vec::new();
     for file in files {
-        let url = format!("http://127.0.0.1:8000/download/{run_id}/{file}");
+        let url = format!("{host}/download/{run_id}/{file}");
         array.push(PathArrayElement {
             path: file,
             item_type: "file".to_string(),
@@ -209,13 +216,13 @@ pub fn enumerate_artifacts(run_id: String) -> WithStatus<Json> {
         count,
         value: array,
     };
-    eprintln!("[enumerate_artifacts] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
+    info!("[enumerate_artifacts] response = PathArrayResponse {{ status: \"success\", count: {count}, value: <{count} items> }}");
 
     with_status(json(&res), StatusCode::OK)
 }
 
 pub fn download_artifact(run_id: String, path: Tail, range: Option<String>) -> Response<Vec<u8>> {
-    eprintln!("[download_artifact] run_id = {run_id}, path = {path:?}, range = {range:?}");
+    info!("[download_artifact] run_id = {run_id}, path = {path:?}, range = {range:?}");
 
     let path = path.as_str();
     let (is_gzip, data) = dump_file(
@@ -232,7 +239,7 @@ pub fn download_artifact(run_id: String, path: Tail, range: Option<String>) -> R
     };
 
     let len = data.len();
-    eprintln!("[download_artifact] response = <{len} bytes>");
+    info!("[download_artifact] response = <{len} bytes>");
 
     header.body(data).unwrap()
 }

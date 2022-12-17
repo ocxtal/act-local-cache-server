@@ -1,5 +1,6 @@
 use crate::file::*;
 use crate::utils::parse_range;
+use log::info;
 use serde_derive::{Deserialize, Serialize};
 use std::path::Path;
 use warp::http::{Response, StatusCode};
@@ -32,13 +33,13 @@ struct ReserveCacheResponse {
 }
 
 pub fn reserve_cache(query: ReserveCacheQuery) -> Json {
-    eprintln!("[reserve_cache] query = {query:?}");
+    info!("[reserve_cache] query = {query:?}");
 
     let res = ReserveCacheResponse {
         status: "success".to_string(),
         cache_id: format!("{}/{}", query.key, query.version),
     };
-    eprintln!("[reserve_cache] response = {res:?}");
+    info!("[reserve_cache] response = {res:?}");
 
     json(&res)
 }
@@ -50,7 +51,7 @@ pub fn upload_cache(
     range: Option<String>,
     input: Bytes,
 ) -> Json {
-    eprintln!(
+    info!(
         "[upload_cache] version = {version}, key = {key}, encoding = {encoding:?}, range = {range:?}, input = <{} bytes>",
         input.len()
     );
@@ -68,7 +69,7 @@ pub fn upload_cache(
     let res = StatusResponse {
         status: "success".to_string(),
     };
-    eprintln!("[upload_cache] response = {res:?}");
+    info!("[upload_cache] response = {res:?}");
 
     json(&res)
 }
@@ -79,19 +80,19 @@ pub struct FinalizeQuery {
 }
 
 pub fn finalize_cache(key: String, version: String, input: FinalizeQuery) -> WithStatus<Json> {
-    eprintln!("[finalize_cache] version = {version}, key = {key}, input = {input:?}");
+    info!("[finalize_cache] version = {version}, key = {key}, input = {input:?}");
 
     let size = finalize_files(".act_local_cache/caches", &format!("{key}/{version}*"));
     if size != input.size {
         let expected = input.size;
-        eprintln!("[finalize_cache] upload size differs (expected = {expected}, actual = {size})");
+        info!("[finalize_cache] upload size differs (expected = {expected}, actual = {size})");
     }
 
     // TODO: check total file size (and concatenate files if needed)
     let res = StatusResponse {
         status: "success".to_string(),
     };
-    eprintln!("[finalize_cache] response = {res:?}");
+    info!("[finalize_cache] response = {res:?}");
 
     with_status(json(&res), StatusCode::OK)
 }
@@ -113,8 +114,8 @@ struct UrlResponse {
     key: String,
 }
 
-pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
-    eprintln!("[enumerate_caches] query = {query:?}");
+pub fn enumerate_caches(host: &str, query: EnumerateQuery) -> WithStatus<Json> {
+    info!("[enumerate_caches] query = {query:?}");
 
     let version = query.version;
 
@@ -123,8 +124,7 @@ pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
         let path = format!(".act_local_cache/caches/{key}/{version}");
 
         if Path::new(&path).exists() {
-            let url =
-                format!("http://127.0.0.1:8000/_apis/artifactcache/cache/download/{key}/{version}");
+            let url = format!("{host}/_apis/artifactcache/cache/download/{key}/{version}");
             array.push(UrlResponse {
                 status: "success".to_string(),
                 url,
@@ -134,20 +134,20 @@ pub fn enumerate_caches(query: EnumerateQuery) -> WithStatus<Json> {
     }
 
     if let Some(res) = array.pop() {
-        eprintln!("[enumerate_caches] response = {res:?}");
+        info!("[enumerate_caches] response = {res:?}");
         with_status(json(&res), StatusCode::OK)
     } else {
         let res = StatusResponse {
             status: "not found".to_string(),
         };
-        eprintln!("[enumerate_caches] response = {res:?}");
+        info!("[enumerate_caches] response = {res:?}");
 
         with_status(json(&res), StatusCode::NOT_FOUND)
     }
 }
 
 pub fn download_cache(key: String, version: String, range: Option<String>) -> Response<Vec<u8>> {
-    eprintln!("[download_cache] version = {version}, key = {key}, range = {range:?}");
+    info!("[download_cache] version = {version}, key = {key}, range = {range:?}");
 
     let (is_gzip, data) = dump_file(
         &format!(".act_local_cache/caches/{key}/{version}"),
@@ -163,7 +163,7 @@ pub fn download_cache(key: String, version: String, range: Option<String>) -> Re
     };
 
     let len = data.len();
-    eprintln!("[download_cache] response = <{len} bytes>");
+    info!("[download_cache] response = <{len} bytes>");
 
     header.body(data).unwrap()
 }
