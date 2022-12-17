@@ -5,22 +5,38 @@ mod utils;
 
 use crate::artifact::*;
 use crate::cache::*;
+use clap::Parser;
+use once_cell::sync::OnceCell;
+use std::net::Ipv4Addr;
 use warp::Filter;
 
-fn root() -> String {
-    eprintln!("[root] request");
-    "act-local-cache-server".to_string()
+#[derive(Parser, Clone, Debug)]
+#[command(version, about = "Local artifact/cache server for use with nektos/act", long_about = None)]
+struct ServerParams {
+    #[clap(short, long, help = "Server address", default_value = "127.0.0.1")]
+    address: Ipv4Addr,
+
+    #[clap(short, long, help = "Server port", default_value = "8000")]
+    port: u16,
+
+    #[clap(short, long, help = "Authentication token", default_value = "token")]
+    token: String,
 }
+
+static SERVER_PARAMS: OnceCell<ServerParams> = OnceCell::new();
 
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 
-    let address = [127, 0, 0, 1];
-    let port = 8000;
+    let args = ServerParams::parse();
 
-    // "/" -> root
-    let path_root = warp::path::end().map(root);
+    // workaround for matching header
+    let patched_args = ServerParams {
+        token: format!("Bearer {}", args.token),
+        ..args
+    };
+    SERVER_PARAMS.set(patched_args).unwrap();
 
     // POST "/<run_id>/artifacts?api-version"
     let path_get_artifact_upload_url =
@@ -107,19 +123,23 @@ async fn main() {
             .and(warp::header::optional::<String>("Content-Range"))
             .map(download_cache);
 
-    let routes = warp::any().and(
-        path_root
-            .or(path_get_artifact_upload_url)
-            .or(path_get_artifact_download_url)
-            .or(path_finalize_artifact)
-            .or(path_download_or_enumerate_artifact)
-            .or(path_upload_artifact)
-            .or(path_reserve_cache)
-            .or(path_upload_cache)
-            .or(path_finalize_cache)
-            .or(path_enumerate_cache)
-            .or(path_download_cache),
-    );
+    let routes = warp::any()
+        .and(warp::header::exact(
+            "Authorization",
+            &SERVER_PARAMS.get().unwrap().token,
+        ))
+        .and(
+            path_get_artifact_upload_url
+                .or(path_get_artifact_download_url)
+                .or(path_finalize_artifact)
+                .or(path_download_or_enumerate_artifact)
+                .or(path_upload_artifact)
+                .or(path_reserve_cache)
+                .or(path_upload_cache)
+                .or(path_finalize_cache)
+                .or(path_enumerate_cache)
+                .or(path_download_cache),
+        );
 
-    warp::serve(routes).run((address, port)).await;
+    warp::serve(routes).run((args.address, args.port)).await;
 }
