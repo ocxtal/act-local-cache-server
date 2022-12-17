@@ -21,15 +21,16 @@ $ cargo install act-local-cache-server --git https://github.com/ocxtal/act-local
 Save the following `.actrc` to the root of the repository you run nektos/act.
 
 ```
---env ACTIONS_CACHE_URL=http://localhost:8000/
---env ACTIONS_RUNTIME_URL=http://localhost:8000/
+--env ACTIONS_CACHE_URL=http://127.0.0.1:8000/
+--env ACTIONS_RUNTIME_URL=http://127.0.0.1:8000/
 --env ACTIONS_RUNTIME_TOKEN=token
 ```
 
 and launch the server in the directory where you want to save artifacts and caches.
 
 ```console
-$ act-local-cache-server
+$ export ACT_LOCAL_CACHE_SERVER_TOKEN=token
+$ act-local-cache-server --address=127.0.0.1 --port=8000
 ```
 
 It creates `.act_local_cache/{artifacts,caches}` there for artifacts and caches, respectively.
