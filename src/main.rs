@@ -43,7 +43,7 @@ async fn main() {
     // format host and auth header
     let params = ServerParams {
         host: format!("http://{}:{}", args.address, args.port),
-        auth: format!("Bearer {}", token),
+        auth: format!("Bearer {token}"),
     };
     SERVER_PARAMS.set(params).unwrap();
 
